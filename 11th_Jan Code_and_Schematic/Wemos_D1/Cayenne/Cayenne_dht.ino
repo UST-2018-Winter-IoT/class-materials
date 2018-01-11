@@ -19,10 +19,10 @@
            //Signal 이 연결된 아두이노의 핀번호 
 
 // Cayenne authentication token. This should be obtained from the Cayenne Dashboard.
-char token[] = "fqkc33zux8";
+char token[] = “yours”;
 // Your network name and password.
-char ssid[] = "AndroidHotspot5358";
-char password[] = "01063425358";
+char ssid[] = “KT_203”;
+char password[] = “1234567!kt”;
 
 float h;
 float t;
