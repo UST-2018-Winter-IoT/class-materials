@@ -1,89 +1,93 @@
-//
-//    FILE: dht11.cpp
-// VERSION: 0.4.1
-// PURPOSE: DHT11 Temperature & Humidity Sensor library for Arduino
-// LICENSE: GPL v3 (http://www.gnu.org/licenses/gpl.html)
-//
-// DATASHEET: http://www.micro4you.com/files/sensor/DHT11.pdf
-//
-// HISTORY:
-// George Hadjikyriacou - Original version (??)
-// Mod by SimKard - Version 0.2 (24/11/2010)
-// Mod by Rob Tillaart - Version 0.3 (28/03/2011)
-// + added comments
-// + removed all non DHT11 specific code
-// + added references
-// Mod by Rob Tillaart - Version 0.4 (17/03/2012)
-// + added 1.0 support
-// Mod by Rob Tillaart - Version 0.4.1 (19/05/2012)
-// + added error codes
-//
+/*
+ * DH11.cpp
+ *
+ *  Created on: 2012. 12. 12.
+ *      Author: dalxx
+ */
 
-#include "dht11.h"
+#include "DHT11.h"
+#include <Arduino.h>
 
-// Return values:
-// DHTLIB_OK
-// DHTLIB_ERROR_CHECKSUM
-// DHTLIB_ERROR_TIMEOUT
-int dht11::read(int pin)
-{
-	// BUFFER TO RECEIVE
-	uint8_t bits[5];
-	uint8_t cnt = 7;
-	uint8_t idx = 0;
 
-	// EMPTY BUFFER
-	for (int i=0; i< 5; i++) bits[i] = 0;
+DHT11::DHT11(int pin_number) {
+	this->pin=pin_number;
+	this->last_read_time=0;
+	pinMode(pin,INPUT);
+	digitalWrite(pin, HIGH);
 
-	// REQUEST SAMPLE
-	pinMode(pin, OUTPUT);
+}
+//wait for target status
+//parameters
+//  target : target status waiting for
+//  time_out_us : time out in microsecond.
+unsigned long DHT11::waitFor(uint8_t target, unsigned long time_out_us) {
+	unsigned long start=micros();
+	unsigned long time_out=start+time_out_us;
+	while(digitalRead(this->pin)!=target)
+	{
+		if(time_out<micros()) return -1;
+	}
+	return micros()-start;
+}
+
+//wait for target status.
+void DHT11::waitFor(uint8_t target) {
+	while(digitalRead(this->pin)!=target);
+}
+
+//read one bye
+byte DHT11::readByte() {
+	int i=0;
+	byte ret=0;
+	for(i=7;i>=0;i--)
+	{
+		waitFor(HIGH); //wait for 50us in LOW status
+		delayMicroseconds(30); //wait for 30us
+		if(digitalRead(this->pin)==HIGH) //if HIGH status lasts for 30us, the bit is 1;
+		{
+			ret|=1<<(i);
+			waitFor(LOW); //wait for rest time in HIGH status.
+		}
+	}
+	return ret;
+}
+
+DHT11::~DHT11() {
+	// TODO Auto-generated destructor stub
+}
+//parameters
+//	temperature : temperature to read.
+//	humidity : humidity to read.
+//return -1 : read too shortly. retry latter .
+//		  0 : read successfully
+//        1 : DHT11 not ready.
+//		  4 : Checksum Error
+int DHT11::read(float& humidity, float& temperature) {
+	if((millis()-this->last_read_time<DHT11_RETRY_DELAY)&&this->last_read_time!=0)	return -1;
+
+	pinMode(pin,OUTPUT);
 	digitalWrite(pin, LOW);
 	delay(18);
 	digitalWrite(pin, HIGH);
-	delayMicroseconds(40);
-	pinMode(pin, INPUT);
+	pinMode(pin,INPUT);
 
-	// ACKNOWLEDGE or TIMEOUT
-	unsigned int loopCnt = 10000;
-	while(digitalRead(pin) == LOW)
-		if (loopCnt-- == 0) return DHTLIB_ERROR_TIMEOUT;
+	if(waitFor(LOW, 40)<0)	return 1; //waiting for DH11 ready
+	if(waitFor(HIGH, 90)<0)	return 1; //waiting for first LOW signal(80us)
+	if(waitFor(LOW, 90)<0)	return 1; //waiting for first HIGH signal(80us)
 
-	loopCnt = 10000;
-	while(digitalRead(pin) == HIGH)
-		if (loopCnt-- == 0) return DHTLIB_ERROR_TIMEOUT;
+	byte hI=this->readByte();
+	byte hF=this->readByte();
+	byte tI=this->readByte();
+	byte tF=this->readByte();
+	byte cksum=this->readByte();
+	if(hI+hF+tI+tF!=cksum)
+		return 4;
 
-	// READ OUTPUT - 40 BITS => 5 BYTES or TIMEOUT
-	for (int i=0; i<40; i++)
-	{
-		loopCnt = 10000;
-		while(digitalRead(pin) == LOW)
-			if (loopCnt-- == 0) return DHTLIB_ERROR_TIMEOUT;
 
-		unsigned long t = micros();
-
-		loopCnt = 10000;
-		while(digitalRead(pin) == HIGH)
-			if (loopCnt-- == 0) return DHTLIB_ERROR_TIMEOUT;
-
-		if ((micros() - t) > 40) bits[idx] |= (1 << cnt);
-		if (cnt == 0)   // next byte?
-		{
-			cnt = 7;    // restart at MSB
-			idx++;      // next byte!
-		}
-		else cnt--;
-	}
-
-	// WRITE TO RIGHT VARS
-        // as bits[1] and bits[3] are allways zero they are omitted in formulas.
-	humidity    = bits[0]; 
-	temperature = bits[2]; 
-
-	uint8_t sum = bits[0] + bits[2];  
-
-	if (bits[4] != sum) return DHTLIB_ERROR_CHECKSUM;
-	return DHTLIB_OK;
+	humidity=(float)hI+(((float)hF)/100.0F);
+	temperature=(float)tI+(((float)tF)/100.0F);
+	this->last_read_time=millis();
+	return 0;
 }
-//
-// END OF FILE
-//
+
+

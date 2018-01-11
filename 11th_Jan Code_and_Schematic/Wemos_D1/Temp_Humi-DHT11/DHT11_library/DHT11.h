@@ -1,41 +1,32 @@
-// 
-//    FILE: dht11.h
-// VERSION: 0.4.1
-// PURPOSE: DHT11 Temperature & Humidity Sensor library for Arduino
-// LICENSE: GPL v3 (http://www.gnu.org/licenses/gpl.html)
-//
-// DATASHEET: http://www.micro4you.com/files/sensor/DHT11.pdf
-//
-//     URL: http://playground.arduino.cc/Main/DHT11Lib
-//
-// HISTORY:
-// George Hadjikyriacou - Original version
-// see dht.cpp file
-// 
+/*
+ * DH11.h
+ *
+ *  Created on: 2012. 12. 12.
+ *      Author: dalxx
+ *      Version : 0.8
+ */
 
-#ifndef dht11_h
-#define dht11_h
-
-#if defined(ARDUINO) && (ARDUINO >= 100)
+#ifndef DHT11_H_
+#define DHT11_H_
 #include <Arduino.h>
-#else
-#include <WProgram.h>
-#endif
+#define DHT11_RETRY_DELAY 1000  // 1000ms
 
-#define DHT11LIB_VERSION "0.4.1"
+class DHT11 {
+	int pin;
+	unsigned long last_read_time;
+protected:
 
-#define DHTLIB_OK				0
-#define DHTLIB_ERROR_CHECKSUM	-1
-#define DHTLIB_ERROR_TIMEOUT	-2
-
-class dht11
-{
+	byte readByte();
+	unsigned long waitFor(uint8_t target, unsigned long time_out_us);
+	void waitFor(uint8_t target);
 public:
-    int read(int pin);
-	int humidity;
-	int temperature;
+	DHT11(int pin_number);
+	~DHT11();
+	int read( float& humidity, float& temperature);
+
+
+
 };
-#endif
-//
-// END OF FILE
-//
+
+
+#endif /* DHT11_H_ */
